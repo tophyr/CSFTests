@@ -11,9 +11,13 @@ import android.widget.ImageView;
 
 public class CSTestCase<StartingActivity extends Activity> extends ActivityInstrumentationTestCase2<StartingActivity> {
 	
-	public static final double SHORT_TIMEOUT = 1.0;
-	public static final double MEDIUM_TIMEOUT = 5.0;
-	public static final double LONG_TIMEOUT = 10.0;
+	public static class Timeouts {
+		public static final double NOW = 0.0;
+		public static final double SHORT = 1.0;
+		public static final double MEDIUM = 5.0;
+		public static final double LONG = 10.0;
+		public static final double NETWORK = 30.0;
+	}
 
 	private Solo m_Solo;
 	
@@ -54,7 +58,7 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	// Helpers
 	
 	protected boolean waitForActivity(String name) {
-		return waitForActivity(name, LONG_TIMEOUT);
+		return waitForActivity(name, Timeouts.LONG);
 	}
 	
 	protected boolean waitForActivity(String name, double timeout) {
@@ -77,7 +81,7 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	}
 	
 	protected void assertActivityShown(String msg, Class<?> activityClass) {
-		assertActivityShown(msg, activityClass, 10);
+		assertActivityShown(msg, activityClass, Timeouts.LONG);
 	}
 	
 	protected void assertActivityShown(Class<?> activityClass, double timeout) {
@@ -91,6 +95,33 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 						activityClass.getSimpleName(), timeout, m_Solo.getCurrentActivity().getClass().getSimpleName());
 			fail(msg);
 		}
+	}
+	
+	protected boolean waitForText(CharSequence text) {
+		return waitForText(text, Timeouts.LONG);
+	}
+	
+	protected boolean waitForText(CharSequence text, double timeout) {
+		return m_Solo.waitForText(text.toString(), 1, (long)(timeout * 1000)); // flaky - polls instead of listens for updates
+	}
+	
+	protected void assertTextShown(CharSequence text) {
+		assertTextShown(null, text);
+	}
+	
+	protected void assertTextShown(String msg, CharSequence text) {
+		assertTextShown(msg, text, Timeouts.LONG);
+	}
+	
+	protected void assertTextShown(CharSequence text, double timeout) {
+		assertTextShown(null, text, timeout);
+	}
+	
+	protected void assertTextShown(String msg, CharSequence text, double timeout) {
+		if (msg == null)
+			msg = String.format("%s not shown after %f seconds", text, timeout);
+		
+		assertTrue(msg, waitForText(text, timeout));
 	}
 	
 	protected View getView(int id) {
