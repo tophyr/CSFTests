@@ -7,6 +7,7 @@ import android.test.ActivityInstrumentationTestCase2;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 
 public class CSTestCase<StartingActivity extends Activity> extends ActivityInstrumentationTestCase2<StartingActivity> {
 	
@@ -53,10 +54,13 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	// Helpers
 	
 	protected boolean waitForActivity(String name) {
-		return m_Solo.waitForActivity(name);
+		return waitForActivity(name, LONG_TIMEOUT);
 	}
 	
 	protected boolean waitForActivity(String name, double timeout) {
+		if (m_Solo.getCurrentActivity().getClass().getSimpleName().equals(name))
+			return true;
+		
 		return m_Solo.waitForActivity(name, (int)(timeout * 1000));
 	}
 	
@@ -73,7 +77,7 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	}
 	
 	protected void assertActivityShown(String msg, Class<?> activityClass) {
-		assertActivityShown(msg, activityClass, 10000);
+		assertActivityShown(msg, activityClass, 10);
 	}
 	
 	protected void assertActivityShown(Class<?> activityClass, double timeout) {
@@ -81,10 +85,12 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	}
 	
 	protected void assertActivityShown(String msg, Class<?> activityClass, double timeout) {
-		if (msg == null)
-			msg = String.format("%s not shown after %f seconds.", activityClass.getSimpleName(), timeout);
-		
-		assertTrue(msg, waitForActivity(activityClass, timeout));
+		if (!waitForActivity(activityClass, timeout)) {
+			if (msg == null)
+				msg = String.format("%s not shown after %f seconds. Current activity: %s", 
+						activityClass.getSimpleName(), timeout, m_Solo.getCurrentActivity().getClass().getSimpleName());
+			fail(msg);
+		}
 	}
 	
 	protected View getView(int id) {
@@ -115,13 +121,34 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 		return getView(id, EditText.class);
 	}
 	
+	protected ImageView getImageView(int id) {
+		return getView(id, ImageView.class);
+	}
+	
+	protected void clickView(int id) {
+		clickView(getView(id));
+	}
+	
+	protected void clickView(View view) {
+		m_Solo.clickOnView(view);
+	}
+	
 	protected void clickButton(int id) {
 		clickButton(getButton(id));
 	}
 	
 	protected void clickButton(Button btn) {
 		assertNotNull("Tried to click null Button.", btn);
-		m_Solo.clickOnView(btn);
+		clickView(btn);
+	}
+	
+	protected void clickImageView(int id) {
+		clickImageView(getImageView(id));
+	}
+	
+	protected void clickImageView(ImageView iv) {
+		assertNotNull("Tried to click null ImageView.", iv);
+		clickView(iv);
 	}
 	
 	protected void clearEditText(int id) {
