@@ -50,30 +50,17 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		m_DontFinishActivities = finish;
 	}
 	
-	// SHOULD GO AWAY
-	protected Solo getSolo() {
-		return m_Solo;
-	}
-	
 	// Helpers
 	
-	protected boolean waitForActivity(String name) {
-		return waitForActivity(name, Timeouts.LONG);
-	}
-	
-	protected boolean waitForActivity(String name, double timeout) {
-		if (m_Solo.getCurrentActivity().getClass().getSimpleName().equals(name))
-			return true;
-		
-		return m_Solo.waitForActivity(name, (int)(timeout * 1000));
-	}
-	
 	protected boolean waitForActivity(Class<?> activityClass) {
-		return waitForActivity(activityClass.getSimpleName());
+		return waitForActivity(activityClass, Timeouts.LONG);
 	}
 	
 	protected boolean waitForActivity(Class<?> activityClass, double timeout) {
-		return waitForActivity(activityClass.getSimpleName(), timeout);
+		if (m_Solo.getCurrentActivity().getClass().equals(activityClass))
+			return true;
+		
+		return m_Solo.waitForActivity(activityClass.getSimpleName(), (int)(timeout * 1000));
 	}
 	
 	protected void assertActivityShown(Class<?> activityClass) {
