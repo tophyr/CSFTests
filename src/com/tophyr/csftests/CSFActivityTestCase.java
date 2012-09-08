@@ -1,4 +1,4 @@
-package com.tophyr.test;
+package com.tophyr.csftests;
 
 import com.jayway.android.robotium.solo.Solo;
 
@@ -9,7 +9,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 
-public class CSTestCase<StartingActivity extends Activity> extends ActivityInstrumentationTestCase2<StartingActivity> {
+public class CSFActivityTestCase<StartingActivity extends Activity> extends ActivityInstrumentationTestCase2<StartingActivity> {
 	
 	public static class Timeouts {
 		public static final double NOW = 0.0;
@@ -23,7 +23,7 @@ public class CSTestCase<StartingActivity extends Activity> extends ActivityInstr
 	
 	private boolean m_DontFinishActivities;
 	
-	public CSTestCase(Class<StartingActivity> startClass) {
+	public CSFActivityTestCase(Class<StartingActivity> startClass) {
 		super(startClass);
 		
 		m_DontFinishActivities = false;
