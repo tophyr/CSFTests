@@ -286,11 +286,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	private static class FindViewResult<T extends View> {
 		public List<T> views;
-		public StringBuilder description;
+		public String description;
 		
 		public FindViewResult() {
 			views = new LinkedList<T>();
-			description = new StringBuilder();
+			description = "";
 		}
 	}
 	
@@ -306,8 +306,8 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	protected FindViewResult<View> all() {
 		FindViewResult<View> result = new FindViewResult<View>();
-		result.description = new StringBuilder("all views");
-		result.views = m_Solo.getViews();
+		result.description = "all views";
+		result.views.addAll(m_Solo.getViews());
 		return result;
 	}
 	
@@ -321,22 +321,24 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		FindViewResult<View> result = new FindViewResult<View>();
 		
-		result.description.append("with id");
-		if (ids.size() > 1) result.description.append("s");
-		result.description.append(" ");
+		StringBuilder description = new StringBuilder();
+		description.append("with id");
+		if (ids.size() > 1) description.append("s");
+		description.append(" ");
 		for (int i = 0; i < ids.size() - 1; i++) {
-			result.description.append(ids.get(i));
-			result.description.append(", ");
+			description.append(ids.get(i));
+			description.append(", ");
 			View v = getView(ids.get(i), View.class, true);
 			if (v != null)
 				result.views.add(v);
 		}
 		
-		result.description.append(ids.get(ids.size() - 1));
+		description.append(ids.get(ids.size() - 1));
 		View v = getView(ids.get(ids.size() - 1), View.class, true);
 		if (v != null)
 			result.views.add(v);
 		
+		result.description = description.toString();
 		return result;
 	}
 	
@@ -346,7 +348,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
-		result.description.append(String.format(" that exactly say '%s'", text));
+		result.description = String.format("%s that exactly say '%s'", result.description, text);
 		
 		Iterator<TextView> iter = result.views.iterator();
 		while (iter.hasNext()) {
@@ -362,7 +364,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
-		result.description.append(String.format(" that say '%s'", text));
+		result.description = String.format("%s that say '%s'", result.description, text);
 		
 		Iterator<TextView> iter = result.views.iterator();
 		while (iter.hasNext()) {
@@ -380,7 +382,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
-		result.description.append(String.format(" that match '%s'", regex));
+		result.description = String.format("%s that match '%s'", result.description, regex);
 		
 		Iterator<TextView> iter = result.views.iterator();
 		while (iter.hasNext()) {
@@ -397,6 +399,8 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	protected <T extends View> FindViewResult<T> isType(FindViewResult<? extends View> in, Class<T> type) {
 		FindViewResult<T> result = new FindViewResult<T>();
+		
+		result.description = String.format("%s that are %ss", in.description, type.getSimpleName());
 		
 		for (View v : in.views) {
 			if (type.isAssignableFrom(v.getClass()))
