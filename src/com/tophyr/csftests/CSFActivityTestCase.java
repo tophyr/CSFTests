@@ -284,11 +284,17 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	// FindView stuff
 	
-	private static class FindViewResult<T extends View> {
-		public List<T> views;
-		public String description;
+	protected static class FindViewResult<T extends View> {
 		
-		public FindViewResult() {
+		@SuppressWarnings("unchecked")
+		static <T extends View> FindViewResult<T> cast(FindViewResult<? extends View> result, Class<T> type) {
+			return (FindViewResult<T>)result;
+		}
+		
+		List<T> views;
+		String description;
+		
+		FindViewResult() {
 			views = new LinkedList<T>();
 			description = "";
 		}
@@ -397,16 +403,15 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return isType(in, TextView.class);
 	}
 	
-	protected <T extends View> FindViewResult<T> isType(FindViewResult<? extends View> in, Class<T> type) {
-		FindViewResult<T> result = new FindViewResult<T>();
+	protected <T extends View> FindViewResult<T> isType(FindViewResult<? extends View> result, Class<T> type) {
+		result.description = String.format("%s that are %ss", result.description, type.getSimpleName());
 		
-		result.description = String.format("%s that are %ss", in.description, type.getSimpleName());
-		
-		for (View v : in.views) {
-			if (type.isAssignableFrom(v.getClass()))
-				result.views.add(type.cast(v));
+		Iterator<? extends View> iter = result.views.iterator();
+		while (iter.hasNext()) {
+			if (!type.isAssignableFrom(iter.next().getClass()))
+				iter.remove();
 		}
 		
-		return result;
+		return FindViewResult.cast(result, type);
 	}
 }
