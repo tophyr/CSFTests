@@ -7,6 +7,6 @@
 			<attribute name="javadoc_location" value="jar:platform:/resource/CSTestCase/lib/robotium-solo-3.4.1-javadoc.jar!/"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/android-7.jar"/>
+	<classpathentry kind="lib" path="lib/android-8.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
