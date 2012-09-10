@@ -430,6 +430,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return FindViewResult.cast(result, type);
 	}
 	
+	// TODO: incomplete. needs description, and actual functionality
 	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
 		Iterator<T> iter = result.views.iterator();
 		
