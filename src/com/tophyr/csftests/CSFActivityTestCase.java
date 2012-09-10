@@ -284,6 +284,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	// FindView stuff
 	
+//	private static abstract class Predicate<T> {
+//		abstract boolean test(T specimen);
+//	}
+	
 	protected static class FindViewResult<T extends View> {
 		
 		@SuppressWarnings("unchecked")
@@ -298,6 +302,17 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			views = new LinkedList<T>();
 			description = "";
 		}
+		
+		// YAGNI
+		// more functional, but actually *more* verbose as well
+		// required for decent encapsulation, but that's not a goal of this class at this time; it's entirely opaque outside this package
+//		void filter(Predicate<T> predicate) {
+//			Iterator<T> iter = views.iterator();
+//			while (iter.hasNext()) {
+//				if (!predicate.test(iter.next()))
+//					iter.remove();
+//			}
+//		}
 	}
 	
 	protected <T extends View> T findView(FindViewResult<T> pattern) {
@@ -413,5 +428,74 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		}
 		
 		return FindViewResult.cast(result, type);
+	}
+	
+	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
+		Iterator<T> iter = result.views.iterator();
+		
+		MatchTest<View, View> test = new MatchTest<View, View>() {
+			@Override
+			boolean matches(View a, View b) {
+				return false; // figure out how to determine if a covers b
+			}
+		};
+		
+		while (iter.hasNext()) {
+			if (!covers.matches(test, iter.next()))
+				iter.remove();
+		}
+		
+		return result;
+	}
+	
+	
+	// combination matching
+	// TODO: refactor - do we need an inheritance model, or would CombinationMatch<View>.MatchAny(...) with a Predicate work?
+	
+	private static abstract class MatchTest<A, B> {
+		abstract boolean matches(A a, B b);
+	}
+	
+	private static abstract class CombinationMatch<T> {
+		List<T> potentials;
+		abstract boolean matches(MatchTest<T, View> predicate, View potential);
+	}
+	
+	private static class CombinationMatchAll<T> extends CombinationMatch<T> {
+		@Override
+		boolean matches(MatchTest<T, View> test, View specimen) {
+			Iterator<T> iter = potentials.iterator();
+			while (iter.hasNext()) {
+				if (!test.matches(iter.next(), specimen))
+					return false;
+			}
+			
+			return true;
+		}
+	}
+	
+	private static class CombinationMatchAny<T> extends CombinationMatch<T> {
+		@Override
+		boolean matches(MatchTest<T, View> test, View specimen) {
+			Iterator<T> iter = potentials.iterator();
+			while (iter.hasNext()) {
+				if (test.matches(iter.next(), specimen))
+					return true;
+			}
+			
+			return false;
+		}
+	}
+	
+	protected <T extends View> CombinationMatchAll<T> all(FindViewResult<T> result) {
+		CombinationMatchAll<T> match = new CombinationMatchAll<T>();
+		match.potentials = result.views;
+		return match;
+	}
+	
+	protected <T extends View> CombinationMatchAny<T> any(FindViewResult<T> result) {
+		CombinationMatchAny<T> match = new CombinationMatchAny<T>();
+		match.potentials = result.views;
+		return match;
 	}
 }
