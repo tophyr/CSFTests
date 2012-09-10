@@ -436,7 +436,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		MatchTest<View, View> test = new MatchTest<View, View>() {
 			@Override
 			boolean matches(View a, View b) {
-				return false; // figure out how to determine if a covers b
+				return false; // TODO: figure out how to determine if a covers b
 			}
 		};
 		
@@ -450,52 +450,38 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	
 	// combination matching
-	// TODO: refactor - do we need an inheritance model, or would CombinationMatch<View>.MatchAny(...) with a Predicate work?
-	
 	private static abstract class MatchTest<A, B> {
 		abstract boolean matches(A a, B b);
 	}
 	
-	private static abstract class CombinationMatch<T> {
-		List<T> potentials;
-		abstract boolean matches(MatchTest<T, View> predicate, View potential);
-	}
-	
-	private static class CombinationMatchAll<T> extends CombinationMatch<T> {
-		@Override
-		boolean matches(MatchTest<T, View> test, View specimen) {
-			Iterator<T> iter = potentials.iterator();
-			while (iter.hasNext()) {
-				if (!test.matches(iter.next(), specimen))
-					return false;
-			}
-			
-			return true;
+	private static class CombinationMatch<T> {
+		private List<T> m_Potentials;
+		private int m_MinMatches;
+		private int m_MaxMatches;
+		
+		public CombinationMatch(List<T> potentials, int min, int max) {
+			m_Potentials = potentials;
+			m_MinMatches = min;
+			m_MaxMatches = max;
 		}
-	}
-	
-	private static class CombinationMatchAny<T> extends CombinationMatch<T> {
-		@Override
-		boolean matches(MatchTest<T, View> test, View specimen) {
-			Iterator<T> iter = potentials.iterator();
-			while (iter.hasNext()) {
+		
+		public boolean matches(MatchTest<T, View> test, View specimen) {
+			int matches = 0;
+			Iterator<T> iter = m_Potentials.iterator();
+			while (iter.hasNext() && matches <= m_MaxMatches) {
 				if (test.matches(iter.next(), specimen))
-					return true;
+					matches++;
 			}
 			
-			return false;
+			return (matches >= m_MinMatches && matches <= m_MaxMatches);
 		}
 	}
 	
-	protected <T extends View> CombinationMatchAll<T> all(FindViewResult<T> result) {
-		CombinationMatchAll<T> match = new CombinationMatchAll<T>();
-		match.potentials = result.views;
-		return match;
+	protected <T extends View> CombinationMatch<T> all(FindViewResult<T> result) {
+		return new CombinationMatch<T>(result.views, result.views.size(), Integer.MAX_VALUE);
 	}
 	
-	protected <T extends View> CombinationMatchAny<T> any(FindViewResult<T> result) {
-		CombinationMatchAny<T> match = new CombinationMatchAny<T>();
-		match.potentials = result.views;
-		return match;
+	protected <T extends View> CombinationMatch<T> any(FindViewResult<T> result) {
+		return new CombinationMatch<T>(result.views, 1, Integer.MAX_VALUE);
 	}
 }
