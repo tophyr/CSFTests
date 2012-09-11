@@ -1,0 +1,7 @@
+This project is currently just a normal Java project with the android.jar manually linked in,
+because I haven't looked into how to make a proper Android-based .jar library yet and this
+solution works as-is. You'll need to either copy or softlink (my recommendation) an
+android.jar (minimum rev 8) into lib/android-8.jar before the project will compile. The
+.gitignore in that directory specifically ignores that file, that is intentional. I'll
+probably end up doing something similar for Robotium, as I don't really want to be
+redistributing their stuff either.
