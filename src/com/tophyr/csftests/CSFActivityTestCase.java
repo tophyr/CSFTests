@@ -496,7 +496,6 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		else
 			desc = "are covered by";
 		result.description = String.format("%s that %s %s", result.description, desc, covers.getDescription());
-		Iterator<T> iter = result.views.iterator();
 		
 		MatchTest<View, View> test = new MatchTest<View, View>() {
 			@Override
@@ -515,6 +514,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			}
 		};
 		
+		Iterator<T> iter = result.views.iterator();
 		while (iter.hasNext()) {
 			if (!covers.matches(test, iter.next()))
 				iter.remove();
@@ -529,6 +529,106 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	protected <T extends View> FindViewResult<T> covers(CombinationMatch<View> under, FindViewResult<T> result) {
 		return coveredBy_internal(under, result, true);
+	}
+	
+	protected <T extends View> FindViewResult<T> toLeftOf(CombinationMatch<View> anchor, FindViewResult<T> result) {
+		result.description = String.format("%s to the left of %s", result.description, anchor.getDescription());
+		
+		MatchTest<View, View> test = new MatchTest<View, View>() {
+			@Override
+			boolean matches(View a, View b) {
+				int xy[] = new int[2];
+				a.getLocationOnScreen(xy);
+				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+				b.getLocationOnScreen(xy);
+				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+				
+				return (ar.right <= br.left);
+			}
+		};
+		
+		Iterator<T> iter = result.views.iterator();
+		while (iter.hasNext()) {
+			if (!anchor.matches(test, iter.next()))
+				iter.remove();
+		}
+		
+		return result;
+	}
+	
+	protected <T extends View> FindViewResult<T> toRightOf(CombinationMatch<View> anchor, FindViewResult<T> result) {
+		result.description = String.format("%s to the right of %s", result.description, anchor.getDescription());
+		
+		MatchTest<View, View> test = new MatchTest<View, View>() {
+			@Override
+			boolean matches(View a, View b) {
+				int xy[] = new int[2];
+				a.getLocationOnScreen(xy);
+				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+				b.getLocationOnScreen(xy);
+				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+				
+				return (ar.left >= br.right);
+			}
+		};
+		
+		Iterator<T> iter = result.views.iterator();
+		while (iter.hasNext()) {
+			if (!anchor.matches(test, iter.next()))
+				iter.remove();
+		}
+		
+		return result;
+	}
+	
+	protected <T extends View> FindViewResult<T> above(CombinationMatch<View> anchor, FindViewResult<T> result) {
+		result.description = String.format("%s above %s", result.description, anchor.getDescription());
+		
+		MatchTest<View, View> test = new MatchTest<View, View>() {
+			@Override
+			boolean matches(View a, View b) {
+				int xy[] = new int[2];
+				a.getLocationOnScreen(xy);
+				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+				b.getLocationOnScreen(xy);
+				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+				
+				return (ar.bottom <= br.top);
+			}
+		};
+		
+		Iterator<T> iter = result.views.iterator();
+		while (iter.hasNext()) {
+			if (!anchor.matches(test, iter.next()))
+				iter.remove();
+		}
+		
+		return result;
+	}
+	
+	protected <T extends View> FindViewResult<T> below(CombinationMatch<View> anchor, FindViewResult<T> result) {
+		result.description = String.format("%s below %s", result.description, anchor.getDescription());
+		
+		MatchTest<View, View> test = new MatchTest<View, View>() {
+			@Override
+			boolean matches(View a, View b) {
+				int xy[] = new int[2];
+				a.getLocationOnScreen(xy);
+				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+				b.getLocationOnScreen(xy);
+				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+				
+				return (ar.top >= br.bottom);
+			}
+		};
+		
+		Iterator<T> iter = result.views.iterator();
+		while (iter.hasNext()) {
+			if (!anchor.matches(test, iter.next()))
+				iter.remove();
+		}
+		
+		return result;
 	}
 	
 	// combination matching
