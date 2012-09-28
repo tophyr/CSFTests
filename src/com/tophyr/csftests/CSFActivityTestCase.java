@@ -1,14 +1,18 @@
 package com.tophyr.csftests;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Pattern;
 
 import android.app.Activity;
+import android.graphics.Rect;
 import android.test.ActivityInstrumentationTestCase2;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -430,14 +434,78 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return FindViewResult.cast(result, type);
 	}
 	
-	// TODO: incomplete. needs description, and actual functionality
+	private boolean isInFrontOf(View front, View back) {
+		if (front == null || back == null)
+			return false;
+		
+		if (front == back)
+			return true; // if you are yourself, we'll say yes you're in front of yourself too
+		
+		if (front.getParent() == back)
+			return true;
+		
+		if (back.getParent() == front)
+			return false;
+		
+		HashSet<ViewParent> frontParents = new HashSet<ViewParent>();
+		for (ViewParent p = (ViewParent)front; p != null; p = p.getParent()) {
+			frontParents.add(p);
+		}
+		
+		ViewGroup commonParent = null;
+		ViewParent lastUniqueFrontAncestor = null, lastUniqueBackAncestor = null;
+		for (ViewParent p = (ViewParent)back, prev = null; p != null; prev = p, p = p.getParent()) {
+			if (frontParents.contains(p)) {
+				commonParent = (ViewGroup)p;
+				lastUniqueBackAncestor = prev;
+				break;
+			}
+		}
+		
+		if (lastUniqueBackAncestor == null)
+			return true; // front is a descendant (really, is a child - should have gotten caught above) of back
+		
+		if (commonParent == null)
+			return false; // views are not in the same tree
+		
+		for (lastUniqueFrontAncestor = (ViewParent)front; 
+			 lastUniqueFrontAncestor != null && lastUniqueFrontAncestor.getParent() != commonParent;
+			 lastUniqueFrontAncestor = lastUniqueFrontAncestor.getParent())
+			;
+		
+		if (lastUniqueFrontAncestor == null)
+			return false; // back is a descendant of front
+		
+		for (int i = 0; i < commonParent.getChildCount(); i++) {
+			// views are drawn in their iteration order, so their iteration order effectively is their z-order
+			// thus if we iterate, whichever view we find first is in front
+			if (commonParent.getChildAt(i) == lastUniqueFrontAncestor)
+				return true;
+			if (commonParent.getChildAt(i) == lastUniqueBackAncestor)
+				return false;
+		}
+		
+		// shouldn't ever get here
+		throw new RuntimeException("Found a common parent, but neither unique ancestor was a child of it.");
+	}
+	
 	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
+		result.description = String.format("%s that are covered by %s", result.description, covers.getDescription());
 		Iterator<T> iter = result.views.iterator();
 		
 		MatchTest<View, View> test = new MatchTest<View, View>() {
 			@Override
 			boolean matches(View a, View b) {
-				return false; // TODO: figure out how to determine if a covers b
+				int xy[] = new int[2];
+				a.getLocationOnScreen(xy);
+				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+				b.getLocationOnScreen(xy);
+				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+				
+				return (a.getVisibility() == View.VISIBLE &&
+						b.getVisibility() == View.VISIBLE &&
+						Rect.intersects(ar, br) &&
+						isInFrontOf(a, b));
 			}
 		};
 		
@@ -457,13 +525,15 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	private static class CombinationMatch<T> {
 		private List<T> m_Potentials;
+		private String m_Description;
 		private int m_MinMatches;
 		private int m_MaxMatches;
 		
-		public CombinationMatch(List<T> potentials, int min, int max) {
+		public CombinationMatch(List<T> potentials, int min, int max, String description) {
 			m_Potentials = potentials;
 			m_MinMatches = min;
 			m_MaxMatches = max;
+			m_Description = description;
 		}
 		
 		public boolean matches(MatchTest<T, View> test, View specimen) {
@@ -476,13 +546,32 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			
 			return (matches >= m_MinMatches && matches <= m_MaxMatches);
 		}
+		
+		public String getDescription() {
+			StringBuilder sb = new StringBuilder();
+			if (m_MinMatches > 0) {
+				sb.append("at least ");
+				sb.append(m_MinMatches);
+				sb.append(" ");
+			}
+			if (m_MaxMatches > 0) {
+				if (sb.length() > 0)
+					sb.append(" but ");
+				sb.append("at most ");
+				sb.append(m_MaxMatches);
+				sb.append(" ");
+			}
+			sb.append(m_Description);
+			
+			return sb.toString();
+		}
 	}
 	
 	protected <T extends View> CombinationMatch<T> all(FindViewResult<T> result) {
-		return new CombinationMatch<T>(result.views, result.views.size(), Integer.MAX_VALUE);
+		return new CombinationMatch<T>(result.views, result.views.size(), Integer.MAX_VALUE, result.description);
 	}
 	
 	protected <T extends View> CombinationMatch<T> any(FindViewResult<T> result) {
-		return new CombinationMatch<T>(result.views, 1, Integer.MAX_VALUE);
+		return new CombinationMatch<T>(result.views, 1, Integer.MAX_VALUE, result.description);
 	}
 }
