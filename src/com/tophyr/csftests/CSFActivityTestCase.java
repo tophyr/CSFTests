@@ -489,8 +489,13 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		throw new RuntimeException("Found a common parent, but neither unique ancestor was a child of it.");
 	}
 	
-	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
-		result.description = String.format("%s that are covered by %s", result.description, covers.getDescription());
+	private <T extends View> FindViewResult<T> coveredBy_internal(CombinationMatch<View> covers, FindViewResult<T> result, final boolean over) {
+		String desc;
+		if (over)
+			desc = "cover";
+		else
+			desc = "are covered by";
+		result.description = String.format("%s that %s %s", result.description, desc, covers.getDescription());
 		Iterator<T> iter = result.views.iterator();
 		
 		MatchTest<View, View> test = new MatchTest<View, View>() {
@@ -505,7 +510,8 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 				return (a.getVisibility() == View.VISIBLE &&
 						b.getVisibility() == View.VISIBLE &&
 						Rect.intersects(ar, br) &&
-						isInFrontOf(a, b));
+						(over && isInFrontOf(a, b)) ||
+						(!over && isInFrontOf(b, a)));
 			}
 		};
 		
@@ -517,6 +523,13 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return result;
 	}
 	
+	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
+		return coveredBy_internal(covers, result, false);
+	}
+	
+	protected <T extends View> FindViewResult<T> covers(CombinationMatch<View> under, FindViewResult<T> result) {
+		return coveredBy_internal(under, result, true);
+	}
 	
 	// combination matching
 	private static abstract class MatchTest<A, B> {
