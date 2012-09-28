@@ -478,11 +478,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		for (int i = 0; i < commonParent.getChildCount(); i++) {
 			// views are drawn in their iteration order, so their iteration order effectively is their z-order
-			// thus if we iterate, whichever view we find first is in front
+			// thus if we iterate, whichever view we find first is behind
 			if (commonParent.getChildAt(i) == lastUniqueFrontAncestor)
-				return true;
-			if (commonParent.getChildAt(i) == lastUniqueBackAncestor)
 				return false;
+			if (commonParent.getChildAt(i) == lastUniqueBackAncestor)
+				return true;
 		}
 		
 		// shouldn't ever get here
