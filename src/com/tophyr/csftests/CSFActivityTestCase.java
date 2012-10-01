@@ -288,9 +288,13 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	// FindView stuff
 	
-//	private static abstract class Predicate<T> {
-//		abstract boolean test(T specimen);
-//	}
+	private static abstract class Predicate<T> {
+		abstract boolean test(T specimen);
+	}
+	
+	private static abstract class TwoParamPredicate<A, B> {
+		abstract boolean test(A a, B b);
+	}
 	
 	protected static class FindViewResult<T extends View> {
 		
@@ -307,16 +311,22 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			description = "";
 		}
 		
-		// YAGNI
-		// more functional, but actually *more* verbose as well
-		// required for decent encapsulation, but that's not a goal of this class at this time; it's entirely opaque outside this package
-//		void filter(Predicate<T> predicate) {
-//			Iterator<T> iter = views.iterator();
-//			while (iter.hasNext()) {
-//				if (!predicate.test(iter.next()))
-//					iter.remove();
-//			}
-//		}
+		void filter(Predicate<T> predicate) {
+			Iterator<T> iter = views.iterator();
+			while (iter.hasNext()) {
+				if (!predicate.test(iter.next()))
+					iter.remove();
+			}
+		}
+		
+		<A> void filter(final CombinationMatch<A> match, final TwoParamPredicate<A, T> test) {
+			filter(new Predicate<T>() {
+				@Override
+				boolean test(T specimen) {
+					return match.matches(test, specimen);
+				}
+			});
+		}
 	}
 	
 	protected <T extends View> T findView(FindViewResult<T> pattern) {
@@ -369,51 +379,44 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	protected FindViewResult<TextView> exactText(CharSequence text) {
 		assertNotNull("Tried to search on null exact text.", text);
-		String s = text.toString();
+		final String s = text.toString();
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
 		result.description = String.format("%s that exactly say '%s'", result.description, text);
 		
-		Iterator<TextView> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!s.contentEquals(iter.next().getText()))
-				iter.remove();
-		}
+		result.filter(new Predicate<TextView>() { @Override boolean test(TextView specimen) { return s.contentEquals(specimen.getText()); } });
 		
 		return result;
 	}
 	
-	protected FindViewResult<TextView> containsText(CharSequence text) {
+	protected FindViewResult<TextView> containsText(final CharSequence text) {
 		assertNotNull("Tried to search on null text.", text);
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
 		result.description = String.format("%s that say '%s'", result.description, text);
 		
-		Iterator<TextView> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			CharSequence elemText = iter.next().getText();
-			if (elemText == null || !elemText.toString().contains(text))
-				iter.remove();
-		}
+		result.filter(new Predicate<TextView>() {
+			@Override
+			boolean test(TextView specimen) {
+				CharSequence elemText = specimen.getText();
+				return (elemText != null && elemText.toString().contains(text));
+			}
+		});
 		
 		return result;
 	}
 	
 	protected FindViewResult<TextView> matchesRegex(CharSequence regex) {
 		assertNotNull("Tried to search on null regex.", regex);
-		Pattern p = Pattern.compile(regex.toString());
+		final Pattern p = Pattern.compile(regex.toString());
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
 		result.description = String.format("%s that match '%s'", result.description, regex);
 		
-		Iterator<TextView> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!p.matcher(iter.next().getText()).matches())
-				iter.remove();
-		}
+		result.filter(new Predicate<TextView>() { @Override boolean test(TextView specimen) { return p.matcher(specimen.getText()).matches(); } });
 		
 		return result;
 	}
@@ -422,14 +425,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return isType(in, TextView.class);
 	}
 	
-	protected <T extends View> FindViewResult<T> isType(FindViewResult<? extends View> result, Class<T> type) {
+	protected <T extends View, R extends View> FindViewResult<R> isType(FindViewResult<T> result, final Class<R> type) {
 		result.description = String.format("%s that are %ss", result.description, type.getSimpleName());
 		
-		Iterator<? extends View> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!type.isAssignableFrom(iter.next().getClass()))
-				iter.remove();
-		}
+		result.filter(new Predicate<T>() { boolean test(T specimen) { return type.isAssignableFrom(specimen.getClass()); } });
 		
 		return FindViewResult.cast(result, type);
 	}
@@ -489,7 +488,26 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		throw new RuntimeException("Found a common parent, but neither unique ancestor was a child of it.");
 	}
 	
-	private <T extends View> FindViewResult<T> coveredBy_internal(CombinationMatch<View> covers, FindViewResult<T> result, final boolean over) {
+	private class RectPredicate<T extends View, R extends View> extends TwoParamPredicate<T, R> {
+		private TwoParamPredicate<Rect, Rect> m_Test;
+		
+		public RectPredicate(TwoParamPredicate<Rect, Rect> test) {
+			m_Test = test;
+		}
+		
+		@Override
+		boolean test(T a, R b) {
+			int xy[] = new int[2];
+			a.getLocationOnScreen(xy);
+			Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
+			b.getLocationOnScreen(xy);
+			Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
+			
+			return m_Test.test(ar, br);
+		}
+	}
+	
+	private <T extends View, R extends View> FindViewResult<R> coveredBy_internal(CombinationMatch<T> covers, FindViewResult<R> result, final boolean over) {
 		String desc;
 		if (over)
 			desc = "cover";
@@ -497,145 +515,72 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			desc = "are covered by";
 		result.description = String.format("%s that %s %s", result.description, desc, covers.getDescription());
 		
-		MatchTest<View, View> test = new MatchTest<View, View>() {
+		TwoParamPredicate<T, R> test = new TwoParamPredicate<T, R>() {
+			private RectPredicate<T, R> m_Test = new RectPredicate<T, R>(new TwoParamPredicate<Rect, Rect>() { @Override boolean test(Rect a, Rect b) { return Rect.intersects(a, b); } });
 			@Override
-			boolean matches(View a, View b) {
-				int xy[] = new int[2];
-				a.getLocationOnScreen(xy);
-				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
-				b.getLocationOnScreen(xy);
-				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
-				
+			boolean test(T a, R b) {
 				return (a.getVisibility() == View.VISIBLE &&
 						b.getVisibility() == View.VISIBLE &&
-						Rect.intersects(ar, br) &&
+						m_Test.test(a, b) &&
 						(over && isInFrontOf(a, b)) ||
 						(!over && isInFrontOf(b, a)));
 			}
 		};
 		
-		Iterator<T> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!covers.matches(test, iter.next()))
-				iter.remove();
-		}
+		result.filter(covers, test);
 		
 		return result;
 	}
 	
-	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<View> covers, FindViewResult<T> result) {
+	protected <T extends View> FindViewResult<T> coveredBy(CombinationMatch<? extends View> covers, FindViewResult<T> result) {
 		return coveredBy_internal(covers, result, false);
 	}
 	
-	protected <T extends View> FindViewResult<T> covers(CombinationMatch<View> under, FindViewResult<T> result) {
+	protected <T extends View> FindViewResult<T> covers(CombinationMatch<? extends View> under, FindViewResult<T> result) {
 		return coveredBy_internal(under, result, true);
 	}
 	
-	protected <T extends View> FindViewResult<T> toLeftOf(CombinationMatch<View> anchor, FindViewResult<T> result) {
+	protected <T extends View, R extends View> FindViewResult<R> toLeftOf(CombinationMatch<T> anchor, FindViewResult<R> result) {
 		result.description = String.format("%s to the left of %s", result.description, anchor.getDescription());
 		
-		MatchTest<View, View> test = new MatchTest<View, View>() {
-			@Override
-			boolean matches(View a, View b) {
-				int xy[] = new int[2];
-				a.getLocationOnScreen(xy);
-				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
-				b.getLocationOnScreen(xy);
-				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
-				
-				return (ar.right <= br.left);
-			}
-		};
+		TwoParamPredicate<Rect, Rect> test = new TwoParamPredicate<Rect, Rect>() { @Override boolean test(Rect a, Rect b) { return a.right <= b.left; } };
 		
-		Iterator<T> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!anchor.matches(test, iter.next()))
-				iter.remove();
-		}
+		result.filter(anchor, new RectPredicate<T, R>(test));
 		
 		return result;
 	}
 	
-	protected <T extends View> FindViewResult<T> toRightOf(CombinationMatch<View> anchor, FindViewResult<T> result) {
+	protected <T extends View, R extends View> FindViewResult<R> toRightOf(CombinationMatch<T> anchor, FindViewResult<R> result) {
 		result.description = String.format("%s to the right of %s", result.description, anchor.getDescription());
 		
-		MatchTest<View, View> test = new MatchTest<View, View>() {
-			@Override
-			boolean matches(View a, View b) {
-				int xy[] = new int[2];
-				a.getLocationOnScreen(xy);
-				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
-				b.getLocationOnScreen(xy);
-				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
-				
-				return (ar.left >= br.right);
-			}
-		};
+		TwoParamPredicate<Rect, Rect> test = new TwoParamPredicate<Rect, Rect>() { @Override boolean test(Rect a, Rect b) { return a.left >= b.right; } };
 		
-		Iterator<T> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!anchor.matches(test, iter.next()))
-				iter.remove();
-		}
+		result.filter(anchor, new RectPredicate<T, R>(test));
 		
 		return result;
 	}
 	
-	protected <T extends View> FindViewResult<T> above(CombinationMatch<View> anchor, FindViewResult<T> result) {
+	protected <T extends View, R extends View> FindViewResult<R> above(CombinationMatch<T> anchor, FindViewResult<R> result) {
 		result.description = String.format("%s above %s", result.description, anchor.getDescription());
 		
-		MatchTest<View, View> test = new MatchTest<View, View>() {
-			@Override
-			boolean matches(View a, View b) {
-				int xy[] = new int[2];
-				a.getLocationOnScreen(xy);
-				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
-				b.getLocationOnScreen(xy);
-				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
-				
-				return (ar.bottom <= br.top);
-			}
-		};
+		TwoParamPredicate<Rect, Rect> test = new TwoParamPredicate<Rect, Rect>() { @Override boolean test(Rect a, Rect b) { return a.bottom <= b.top; } };
 		
-		Iterator<T> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!anchor.matches(test, iter.next()))
-				iter.remove();
-		}
+		result.filter(anchor, new RectPredicate<T, R>(test));
 		
 		return result;
 	}
 	
-	protected <T extends View> FindViewResult<T> below(CombinationMatch<View> anchor, FindViewResult<T> result) {
+	protected <T extends View, R extends View> FindViewResult<R> below(CombinationMatch<T> anchor, FindViewResult<R> result) {
 		result.description = String.format("%s below %s", result.description, anchor.getDescription());
 		
-		MatchTest<View, View> test = new MatchTest<View, View>() {
-			@Override
-			boolean matches(View a, View b) {
-				int xy[] = new int[2];
-				a.getLocationOnScreen(xy);
-				Rect ar = new Rect(xy[0], xy[1], a.getWidth() + xy[0], a.getHeight() + xy[1]);
-				b.getLocationOnScreen(xy);
-				Rect br = new Rect(xy[0], xy[1], b.getWidth() + xy[0], b.getHeight() + xy[1]);
-				
-				return (ar.top >= br.bottom);
-			}
-		};
+		TwoParamPredicate<Rect, Rect> test = new TwoParamPredicate<Rect, Rect>() { @Override boolean test(Rect a, Rect b) { return a.top >= b.bottom; } };
 		
-		Iterator<T> iter = result.views.iterator();
-		while (iter.hasNext()) {
-			if (!anchor.matches(test, iter.next()))
-				iter.remove();
-		}
+		result.filter(anchor, new RectPredicate<T, R>(test));
 		
 		return result;
 	}
 	
 	// combination matching
-	private static abstract class MatchTest<A, B> {
-		abstract boolean matches(A a, B b);
-	}
-	
 	private static class CombinationMatch<T> {
 		private List<T> m_Potentials;
 		private String m_Description;
@@ -649,11 +594,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			m_Description = description;
 		}
 		
-		public boolean matches(MatchTest<T, View> test, View specimen) {
+		public <S> boolean matches(TwoParamPredicate<T, S> test, S specimen) {
 			int matches = 0;
 			Iterator<T> iter = m_Potentials.iterator();
 			while (iter.hasNext() && matches <= m_MaxMatches) {
-				if (test.matches(iter.next(), specimen))
+				if (test.test(iter.next(), specimen))
 					matches++;
 			}
 			
