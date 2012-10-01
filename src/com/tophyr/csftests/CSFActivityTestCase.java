@@ -425,6 +425,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return isType(in, TextView.class);
 	}
 	
+	protected FindViewResult<EditText> isEditText(FindViewResult<? extends View> in) {
+		return isType(in, EditText.class);
+	}
+	
 	protected <T extends View, R extends View> FindViewResult<R> isType(FindViewResult<T> result, final Class<R> type) {
 		result.description = String.format("%s that are %ss", result.description, type.getSimpleName());
 		
