@@ -1,6 +1,9 @@
 package com.tophyr.csftests;
 
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -8,8 +11,13 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import android.app.Activity;
+import android.app.Instrumentation;
+import android.app.Instrumentation.ActivityMonitor;
+import android.content.IntentFilter;
 import android.graphics.Rect;
+import android.os.SystemClock;
 import android.test.ActivityInstrumentationTestCase2;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -33,8 +41,128 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		public static final double LONG = 10.0;
 		public static final double NETWORK = 30.0;
 	}
+	
+	private static class CSActivityMonitor extends ActivityMonitor {
+		
+		private static final Field s_mResumed;
+		
+		static {
+			Field f;
+			try {
+				f = Activity.class.getDeclaredField("mResumed");
+			} catch (SecurityException e) {
+				f = null;
+			} catch (NoSuchFieldException e) {
+				f = null;
+			}
+			s_mResumed = f;
+			s_mResumed.setAccessible(true);
+		}
+		
+		private WeakReference<Activity> m_LastResumedActivity;
+		private final Thread m_Thread;
+		private boolean m_Finished;
+		
+		private final HashMap<Class<?>, Object> m_Waiters;
+		
+		public CSActivityMonitor() {
+			super((IntentFilter)null, null, false);
+			
+			if (s_mResumed == null)
+				throw new RuntimeException("Unable to access mResumed field of Activity.");
+			
+			m_LastResumedActivity = new WeakReference<Activity>(null);
+			
+			m_Waiters = new HashMap<Class<?>, Object>();
+			
+			m_Finished = false;
+			
+			m_Thread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					Activity a;
+					
+					synchronized (CSActivityMonitor.this) {
+						while (!m_Finished) {
+							try {
+									CSActivityMonitor.this.wait();
+									a = getLastActivity();
+							} catch (InterruptedException e) {
+								continue;
+							}
+							
+							try {
+								if (a != null && s_mResumed.getBoolean(a) && m_LastResumedActivity.get() != a) { // not sure how this last one would happen
+									m_LastResumedActivity = new WeakReference<Activity>(a);
+									
+									Object waitLock = null;
+									final Class<?> cls = a.getClass();
+									synchronized (m_Waiters) {
+										if (m_Waiters.containsKey(cls))
+											waitLock = m_Waiters.get(cls);
+									}
+									if (waitLock != null) {
+										synchronized (waitLock) {
+											waitLock.notifyAll();
+										}
+									}
+								}
+							} catch (IllegalArgumentException e) {
+								Log.e("CSFActivityTestCase", "Supposed-to-be-impossible error:", e);
+							} catch (IllegalAccessException e) {
+								Log.e("CSFActivityTestCase", "Supposed-to-be-impossible error:", e);
+							}
+						}
+					}
+				}
+			});
+			m_Thread.start();
+		}
+		
+		public Activity getLastResumedActivity() {
+			return m_LastResumedActivity.get();
+		}
+		
+		public boolean waitForResumedActivity(Class<?> cls, long timeout) {
+			if (getLastResumedActivity().getClass() == cls)
+				return true;
+			
+			final Object waitLock;
+			synchronized (m_Waiters) {
+				if (m_Waiters.containsKey(cls))
+					waitLock = m_Waiters.get(cls);
+				else {
+					waitLock = new Object();
+					m_Waiters.put(cls, waitLock);
+				}	
+			}
+			
+			synchronized (waitLock) {
+				final long millisGoal = SystemClock.uptimeMillis() + timeout;
+				while (timeout > 0) {
+					try {
+						waitLock.wait(timeout);
+						return true;
+					} catch (InterruptedException e) {
+						timeout = millisGoal - SystemClock.uptimeMillis();
+					}
+				}
+			}
+			
+			return false;
+		}
+
+		@Override
+		public void finalize() throws Throwable {
+			m_Finished = true;
+			m_Thread.interrupt();
+			super.finalize();
+		}
+	}
 
 	private Solo m_Solo;
+	private CSActivityMonitor m_ActivityMonitor;
+	private Instrumentation m_Instrumentation;
 	
 	private boolean m_DontFinishActivities;
 	
@@ -48,13 +176,19 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	protected void setUp() throws Exception {
 		super.setUp();
 		
-		m_Solo = new Solo(getInstrumentation(), null);
+		m_Instrumentation = getInstrumentation();
+		m_ActivityMonitor = new CSActivityMonitor();
+		m_Instrumentation.addMonitor(m_ActivityMonitor);
+		m_Solo = new Solo(m_Instrumentation, null);
 	}
 	
 	@Override
 	protected void tearDown() throws Exception {
 		if (!m_DontFinishActivities)
 			m_Solo.finishOpenedActivities();
+		
+		m_Instrumentation.removeMonitor(m_ActivityMonitor);
+		m_ActivityMonitor = null;
 		
 		super.tearDown();
 	}
@@ -67,15 +201,16 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	// Helpers
 	
+	protected Activity getCurrentActivity() {
+		return m_ActivityMonitor.getLastResumedActivity();
+	}
+	
 	protected boolean waitForActivity(Class<?> activityClass) {
 		return waitForActivity(activityClass, Timeouts.LONG);
 	}
 	
 	protected boolean waitForActivity(Class<?> activityClass, double timeout) {
-		if (m_Solo.getCurrentActivity().getClass().equals(activityClass))
-			return true;
-		
-		return m_Solo.waitForActivity(activityClass.getSimpleName(), (int)(timeout * 1000));
+		return m_ActivityMonitor.waitForResumedActivity(activityClass, (long)(timeout * 1000 + 1));
 	}
 	
 	protected void assertActivityShown(Class<?> activityClass) {
@@ -94,7 +229,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		if (!waitForActivity(activityClass, timeout)) {
 			if (msg == null)
 				msg = String.format("%s not shown after %f seconds. Current activity: %s", 
-						activityClass.getSimpleName(), timeout, m_Solo.getCurrentActivity().getClass().getSimpleName());
+						activityClass.getSimpleName(), timeout, getCurrentActivity().getClass().getSimpleName());
 			fail(msg);
 		}
 	}
@@ -335,14 +470,23 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	
 	protected <T extends View> List<T> findViews(FindViewResult<T> pattern) {
 		assertNotNull("Tried to find views with null pattern.", pattern);
-		assertFalse(pattern.description.toString(), pattern.views.isEmpty());
+		assertFalse(String.format("Failed to find any %s", pattern.description), pattern.views.isEmpty());
 		return pattern.views;
+	}
+	
+	private void walkTree(List<View> list, View root) {
+		list.add(root);
+		if (root instanceof ViewGroup) {
+			ViewGroup vg = (ViewGroup)root;
+			for (int i = 0; i < vg.getChildCount(); i++)
+				walkTree(list, vg.getChildAt(i));
+		}
 	}
 	
 	protected FindViewResult<View> all() {
 		FindViewResult<View> result = new FindViewResult<View>();
-		result.description = "all views";
-		result.views.addAll(m_Solo.getViews());
+		result.description = "views";
+		walkTree(result.views, getCurrentActivity().getWindow().getDecorView().getRootView());
 		return result;
 	}
 	
@@ -377,46 +521,40 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return result;
 	}
 	
-	protected FindViewResult<TextView> exactText(CharSequence text) {
+	protected FindViewResult<TextView> exactText(CharSequence text, boolean includeHint) {
 		assertNotNull("Tried to search on null exact text.", text);
-		final String s = text.toString();
 		
-		FindViewResult<TextView> result = isTextView(all());
-		
-		result.description = String.format("%s that exactly say '%s'", result.description, text);
-		
-		result.filter(new Predicate<TextView>() { @Override boolean test(TextView specimen) { return s.contentEquals(specimen.getText()); } });
-		
-		return result;
+		return matchesRegex(String.format("\\A%s\\Z", Pattern.quote(text.toString())), includeHint);
 	}
 	
-	protected FindViewResult<TextView> containsText(final CharSequence text) {
+	protected FindViewResult<TextView> exactText(CharSequence text) {
+		return exactText(text, false);
+	}
+	
+	protected FindViewResult<TextView> containsText(CharSequence text, boolean includeHint) {
 		assertNotNull("Tried to search on null text.", text);
 		
-		FindViewResult<TextView> result = isTextView(all());
-		
-		result.description = String.format("%s that say '%s'", result.description, text);
-		
-		result.filter(new Predicate<TextView>() {
-			@Override
-			boolean test(TextView specimen) {
-				CharSequence elemText = specimen.getText();
-				return (elemText != null && elemText.toString().contains(text));
-			}
-		});
-		
-		return result;
+		return matchesRegex(Pattern.quote(text.toString()), includeHint);
 	}
 	
-	protected FindViewResult<TextView> matchesRegex(CharSequence regex) {
+	protected FindViewResult<TextView> containsText(CharSequence text) {
+		return containsText(text, false);
+	}
+	
+	protected FindViewResult<TextView> matchesRegex(CharSequence regex, final boolean includeHint) {
 		assertNotNull("Tried to search on null regex.", regex);
 		final Pattern p = Pattern.compile(regex.toString());
 		
 		FindViewResult<TextView> result = isTextView(all());
 		
-		result.description = String.format("%s that match '%s'", result.description, regex);
-		
-		result.filter(new Predicate<TextView>() { @Override boolean test(TextView specimen) { return p.matcher(specimen.getText()).matches(); } });
+		result.description = String.format("%s that match%s '%s'", result.description, includeHint ? " with hint" : "", regex);
+		result.filter(new Predicate<TextView>() { 
+			@Override
+			boolean test(TextView specimen) {
+				return (specimen.getText() != null && p.matcher(specimen.getText()).matches()) ||
+					   (includeHint && specimen.getHint() != null && p.matcher(specimen.getHint()).matches());
+			} 
+		});
 		
 		return result;
 	}
@@ -592,10 +730,16 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	private static class CombinationMatch<T> {
 		private List<T> m_Potentials;
 		private String m_Description;
-		private int m_MinMatches;
-		private int m_MaxMatches;
+		private int m_MinMatches = 0;
+		private int m_MaxMatches = Integer.MAX_VALUE;
 		
 		public CombinationMatch(List<T> potentials, int min, int max, String description) {
+			if (potentials.size() == 0)
+				throw new IllegalArgumentException("No potential matches.");
+			if (min < 1)
+				throw new IllegalArgumentException("Must match at least one potential.");
+			if (max < min)
+				throw new IllegalArgumentException("Maximum matches must be at least the number of minimum matches.");
 			m_Potentials = potentials;
 			m_MinMatches = min;
 			m_MaxMatches = max;
@@ -615,18 +759,26 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		public String getDescription() {
 			StringBuilder sb = new StringBuilder();
-			if (m_MinMatches > 0) {
-				sb.append("at least ");
-				sb.append(m_MinMatches);
-				sb.append(" ");
+			if (m_MinMatches == m_MaxMatches && m_MinMatches == m_Potentials.size()) {
+				sb.append("all ");
 			}
-			if (m_MaxMatches > 0) {
-				if (sb.length() > 0)
-					sb.append(" but ");
-				sb.append("at most ");
-				sb.append(m_MaxMatches);
-				sb.append(" ");
+			else if (m_MinMatches == 1 && m_MaxMatches == m_Potentials.size()) {
+				sb.append("any ");
+			} else {
+				if (m_MinMatches > 1) {
+					sb.append("at least ");
+					sb.append(m_MinMatches);
+					sb.append(" ");
+				}
+				if (m_MaxMatches < Integer.MAX_VALUE) {
+					if (sb.length() > 0)
+						sb.append(" but ");
+					sb.append("at most ");
+					sb.append(m_MaxMatches);
+					sb.append(" ");
+				}
 			}
+			sb.append("of ");
 			sb.append(m_Description);
 			
 			return sb.toString();
