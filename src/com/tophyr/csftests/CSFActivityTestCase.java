@@ -474,6 +474,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return pattern.views;
 	}
 	
+	protected <T extends View> List<T> findViewsOrEmpty(FindViewResult<T> pattern) {
+		assertNotNull("Tried to find views with null pattern.", pattern);
+		return pattern.views;
+	}
+	
 	private void walkTree(List<View> list, View root) {
 		list.add(root);
 		if (root instanceof ViewGroup) {
