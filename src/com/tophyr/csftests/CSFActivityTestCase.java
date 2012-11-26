@@ -61,12 +61,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		}
 		
 		private WeakReference<Activity> m_LastResumedActivity;
-		private WeakReference<Activity> m_LastFinishedActivity;
 		private final Thread m_Thread;
 		private volatile boolean m_Running;
 		
 		private final HashMap<Class<?>, Object> m_ResumeWaiters;
-		private final HashMap<Class<?>, Object> m_FinishWaiters;
+		private final HashMap<Activity, Object> m_FinishWaiters;
 		
 		public CSActivityMonitor() {
 			super((IntentFilter)null, null, false);
@@ -75,10 +74,9 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 				throw new RuntimeException("Unable to access mResumed field of Activity.");
 			
 			m_LastResumedActivity = new WeakReference<Activity>(null);
-			m_LastFinishedActivity = new WeakReference<Activity>(null);
 			
 			m_ResumeWaiters = new HashMap<Class<?>, Object>();
-			m_FinishWaiters = new HashMap<Class<?>, Object>();
+			m_FinishWaiters = new HashMap<Activity, Object>();
 			
 			m_Running = true;
 			
@@ -114,15 +112,11 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 											waitLock.notifyAll();
 										}
 									}
-								} else if (a.isFinishing() && m_LastFinishedActivity.get() != a) {
-									Log.d("CSFTests", a.toString() + " is finishing");
-									m_LastFinishedActivity = new WeakReference<Activity>(a);
-									
+								} else if (a.isFinishing()) {
 									Object waitLock = null;
-									final Class<?> cls = a.getClass();
 									synchronized (m_FinishWaiters) {
-										if (m_FinishWaiters.containsKey(cls))
-											waitLock = m_FinishWaiters.get(cls);
+										if (m_FinishWaiters.containsKey(a))
+											waitLock = m_FinishWaiters.get(a);
 									}
 									if (waitLock != null) {
 										synchronized (waitLock) {
@@ -144,10 +138,6 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		
 		public Activity getLastResumedActivity() {
 			return m_LastResumedActivity.get();
-		}
-		
-		public Activity getLastFinishedActivity() {
-			return m_LastFinishedActivity.get(); // not entirely sure this is safe.. will return null once the ref goes away right?
 		}
 		
 		public boolean waitForResumedActivity(Class<?> cls, long timeout) {
@@ -179,17 +169,19 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			return false;
 		}
 		
-		public boolean waitForFinishedActivity(Class<?> cls, long timeout) {
-			if (getLastFinishedActivity() != null && getLastFinishedActivity().getClass() == cls)
+		public boolean waitForFinishedActivity(Activity a, long timeout) {
+			if (a == null)
+				throw new IllegalArgumentException("Activity may not be null.");
+			if (a.isFinishing())
 				return true;
 			
 			final Object waitLock;
 			synchronized (m_FinishWaiters) {
-				if (m_FinishWaiters.containsKey(cls))
-					waitLock = m_FinishWaiters.get(cls);
+				if (m_FinishWaiters.containsKey(a))
+					waitLock = m_FinishWaiters.get(a);
 				else {
 					waitLock = new Object();
-					m_FinishWaiters.put(cls, waitLock);
+					m_FinishWaiters.put(a, waitLock);
 				}	
 			}
 			
@@ -198,7 +190,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 				while (timeout > 0) {
 					try {
 						waitLock.wait(timeout);
-						return getLastFinishedActivity().getClass() == cls;
+						return a.isFinishing();
 					} catch (InterruptedException e) {
 						timeout = millisGoal - SystemClock.uptimeMillis();
 					}
@@ -269,12 +261,12 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return m_ActivityMonitor.waitForResumedActivity(activityClass, (long)(timeout * 1000 + 1));
 	}
 	
-	protected boolean waitForActivityToFinish(Class<?> activityClass) {
-		return waitForActivityToFinish(activityClass, Timeouts.LONG);
+	protected boolean waitForActivityToFinish(Activity a) {
+		return waitForActivityToFinish(a, Timeouts.LONG);
 	}
 	
-	protected boolean waitForActivityToFinish(Class<?> activityClass, double timeout) {
-		return m_ActivityMonitor.waitForFinishedActivity(activityClass, (long)(timeout * 1000 + 1));
+	protected boolean waitForActivityToFinish(Activity a, double timeout) {
+		return m_ActivityMonitor.waitForFinishedActivity(a, (long)(timeout * 1000 + 1));
 	}
 	
 	protected void assertActivityShown(Class<?> activityClass) {
@@ -325,24 +317,43 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		assertTrue(msg, waitForText(text, timeout));
 	}
 	
-	protected Intent assertActivityFinished(String msg, Class<?> activityClass, Integer resultCode, double timeout) {
-		if (!waitForActivityToFinish(activityClass, timeout)) {
+	protected Intent assertActivityFinished(Activity a) {
+		return assertActivityFinished(a, null);
+	}
+	
+	protected Intent assertActivityFinished(String msg, Activity a) {
+		return assertActivityFinished(msg, a, null);
+	}
+	
+	protected Intent assertActivityFinished(Activity a, Integer resultCode) {
+		return assertActivityFinished(a, resultCode, Timeouts.LONG);
+	}
+	
+	protected Intent assertActivityFinished(String msg, Activity a, Integer resultCode) {
+		return assertActivityFinished(null, a, resultCode, Timeouts.LONG);
+	}
+	
+	protected Intent assertActivityFinished(Activity a, Integer resultCode, double timeout) {
+		return assertActivityFinished(null, a, resultCode, timeout);
+	}
+	
+	protected Intent assertActivityFinished(String msg, Activity a, Integer resultCode, double timeout) {
+		if (!waitForActivityToFinish(a, timeout)) {
 			if (msg == null)
-				msg = String.format("%s didn't finish after %f seconds.", activityClass.getSimpleName(), timeout);
+				msg = String.format("%s didn't finish after %f seconds.", a, timeout);
 			fail(msg);
 		}
 		
-		Activity a = m_ActivityMonitor.getLastFinishedActivity();
 		try {
-			Field f = Activity.class.getDeclaredField("mResultCode");
-			f.setAccessible(true);
-			int actualResultCode = (Integer)f.get(a);
-			if (resultCode != null)
-				assertEquals(activityClass.getSimpleName() + " finished, but with wrong result code", (int)actualResultCode, (int)resultCode);
+			if (resultCode != null) {
+				Field mResultCode = Activity.class.getDeclaredField("mResultCode");
+				mResultCode.setAccessible(true);									
+				assertEquals(a.toString() + " finished, but with wrong result code", (Integer)mResultCode.get(a), resultCode);
+			}
 			
-			f = Activity.class.getDeclaredField("mResultData");
-			f.setAccessible(true);
-			return (Intent)f.get(a);
+			Field mResultData = Activity.class.getDeclaredField("mResultData");
+			mResultData.setAccessible(true);
+			return (Intent)mResultData.get(a);
 		} catch (NoSuchFieldException e) {
 			throw new RuntimeException(e);
 		} catch (IllegalArgumentException e) {
@@ -351,23 +362,6 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 			throw new RuntimeException(e);
 		}
 	}
-	
-//	protected Intent assertFinishCalledWithResult(int resultCode) {
-//		
-//		try {
-//			Field f = Activity.class.getDeclaredField("mResultCode");
-//			f.setAccessible(true);
-//			int actualResultCode = (Integer)f.get(getActivity());
-//			assertThat(actualResultCode, is(resultCode));
-//			f = Activity.class.getDeclaredField("mResultData");
-//			f.setAccessible(true);
-//			return (Intent)f.get(getActivity());
-//		} catch (NoSuchFieldException e) {
-//			throw new RuntimeException("Looks like the Android Activity class has changed it's private fields for mResultCode or mResultData. Time to update the reflection code.", e);
-//		} catch (Exception e) {
-//			throw new RuntimeException(e);
-//		}
-//	}
 	
 	protected View getView(int id) {
 		return m_Solo.getView(id);
