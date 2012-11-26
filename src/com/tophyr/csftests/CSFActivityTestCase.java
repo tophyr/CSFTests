@@ -142,7 +142,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 				while (timeout > 0) {
 					try {
 						waitLock.wait(timeout);
-						return true;
+						return getLastResumedActivity().getClass() == cls;
 					} catch (InterruptedException e) {
 						timeout = millisGoal - SystemClock.uptimeMillis();
 					}
