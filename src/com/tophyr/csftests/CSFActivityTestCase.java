@@ -491,6 +491,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	protected FindViewResult<View> all() {
 		FindViewResult<View> result = new FindViewResult<View>();
 		result.description = "views";
+		getInstrumentation().waitForIdleSync();
 		walkTree(result.views, getCurrentActivity().getWindow().getDecorView().getRootView());
 		return result;
 	}
@@ -502,6 +503,8 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	protected FindViewResult<View> withIds(List<Integer> ids) {
 		if (ids == null || ids.isEmpty())
 			fail("Tried to search on null or empty id list.");
+		
+		getInstrumentation().waitForIdleSync();
 		
 		FindViewResult<View> result = new FindViewResult<View>();
 		
