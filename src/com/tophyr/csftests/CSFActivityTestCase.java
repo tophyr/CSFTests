@@ -415,6 +415,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return getView(id, ToggleButton.class);
 	}
 	
+	protected void clickBack() {
+		m_Solo.goBack();
+	}
+	
 	protected void clickView(int id) {
 		clickView(getView(id));
 	}
