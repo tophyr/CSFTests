@@ -290,6 +290,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		}
 	}
 	
+	protected boolean waitForFragmentByTag(String tag) {
+		return m_Solo.waitForFragmentByTag(tag);
+	}
+	
 	protected boolean waitForText(CharSequence text) {
 		return waitForText(text, Timeouts.LONG);
 	}
