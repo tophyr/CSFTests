@@ -387,6 +387,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		}
 	}
 	
+	protected Solo getSolo() {
+		return m_Solo;
+	}
+	
 	protected Button getButton(int id) {
 		return getView(id, Button.class);
 	}
