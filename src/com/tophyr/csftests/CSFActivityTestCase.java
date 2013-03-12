@@ -321,6 +321,25 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		assertTrue(msg, waitForText(text, timeout));
 	}
 	
+	protected void assertTextNotShown(CharSequence text) {
+		assertTextNotShown(null, text);
+	}
+	
+	protected void assertTextNotShown(String msg, CharSequence text) {
+		assertTextNotShown(msg, text, Timeouts.LONG);
+	}
+	
+	protected void assertTextNotShown(CharSequence text, double timeout) {
+		assertTextNotShown(null, text, timeout);
+	}
+	
+	protected void assertTextNotShown(String msg, CharSequence text, double timeout) {
+		if (msg == null)
+			msg = String.format("%s still shown after %f seconds", text, timeout);
+		
+		assertFalse(msg, waitForText(text, timeout));
+	}
+	
 	protected Intent assertActivityFinished(Activity a) {
 		return assertActivityFinished(a, null);
 	}
@@ -487,6 +506,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	protected void clickRadioButton(RadioButton rb) {
 		assertNotNull("Tried to click null RadioButton.", rb);
 		clickView(rb);
+	}
+	
+	protected void clickText(String text){
+		m_Solo.clickOnText(text);
 	}
 	
 	protected void clickTextView(int id) {
@@ -692,6 +715,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	protected FindViewResult<Button> isButton(FindViewResult<? extends View> in) {
 		return isType(in, Button.class);
 	}
+	
 	
 	protected <T extends View, R extends View> FindViewResult<R> isType(FindViewResult<T> result, final Class<R> type) {
 		result.description = String.format("%s that are %ss", result.description, type.getSimpleName());
