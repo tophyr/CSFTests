@@ -446,6 +446,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		m_Solo.goBack();
 	}
 	
+	protected void clickActionBarHome() {
+		m_Solo.clickOnActionBarHomeButton();
+	}
+	
 	protected void clickView(int id) {
 		clickView(getView(id));
 	}
