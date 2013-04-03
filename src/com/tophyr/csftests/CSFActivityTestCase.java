@@ -299,7 +299,15 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	}
 	
 	protected boolean waitForText(CharSequence text, double timeout) {
-		return m_Solo.waitForText(text.toString(), 1, (long)(timeout * 1000)); // flaky - polls instead of listens for updates
+		final long wait = Math.min(100, (long)(timeout * 100));
+		final long end = System.currentTimeMillis() + (long)(timeout * 1000);
+		
+		boolean found = false;
+		while (System.currentTimeMillis() < end &&
+			   !(found |= !findViewsOrEmpty(containsText(text)).isEmpty()))
+			SystemClock.sleep(wait);
+		
+		return found;
 	}
 	
 	protected void assertTextShown(CharSequence text) {
