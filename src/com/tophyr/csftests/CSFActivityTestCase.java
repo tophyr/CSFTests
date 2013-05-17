@@ -767,7 +767,7 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return containsText(text, false);
 	}
 	
-	protected FindViewResult<TextView> matchesRegex(CharSequence regex, final boolean includeHint) {
+	protected FindViewResult<TextView> matchesRegex(final CharSequence regex, final boolean includeHint) {
 		assertNotNull("Tried to search on null regex.", regex);
 		final Pattern p = Pattern.compile(regex.toString());
 		
