@@ -3,6 +3,7 @@ package com.tophyr.csftests;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -22,6 +23,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -628,6 +630,40 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return pattern.views;
 	}
 	
+	private List<View> getTopWindowRootView(WindowManager wm) {
+		try {
+			if (wm.getClass().getName().equals("android.view.Window$LocalWindowManager")) {
+				Field f = wm.getClass().getSuperclass().getDeclaredField("mWindowManager");
+				f.setAccessible(true);
+				wm = (WindowManager)f.get(wm);
+			}
+			
+			Field rootsField = wm.getClass().getDeclaredField("mRoots");
+			rootsField.setAccessible(true);
+			Object[] roots = (Object[])rootsField.get(wm);
+			Class<?> viewRootImplClass = roots[0].getClass();
+			
+			Field attrsField = viewRootImplClass.getDeclaredField("mWindowAttributes");
+			attrsField.setAccessible(true);
+			Field viewField = viewRootImplClass.getDeclaredField("mView");
+			viewField.setAccessible(true);
+			LinkedList<View> rootViews = new LinkedList<View>();
+			for (int top = roots.length - 1; top >= 0; top--) {
+				rootViews.add((View)viewField.get(roots[top]));
+				
+				WindowManager.LayoutParams lp = (WindowManager.LayoutParams)attrsField.get(roots[top]);
+				if (lp.type <= WindowManager.LayoutParams.LAST_APPLICATION_WINDOW ||
+					lp.type == WindowManager.LayoutParams.TYPE_APPLICATION_ATTACHED_DIALOG)
+					break;
+			}
+			
+			return rootViews;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return Collections.emptyList();
+		}		
+	}
+	
 	private void walkTree(List<View> list, View root) {
 		list.add(root);
 		if (root instanceof ViewGroup) {
@@ -641,7 +677,8 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		FindViewResult<View> result = new FindViewResult<View>();
 		result.description = "views";
 		getInstrumentation().waitForIdleSync();
-		walkTree(result.views, getCurrentActivity().getWindow().getDecorView().getRootView());
+		for (View root : getTopWindowRootView(getCurrentActivity().getWindowManager()))
+			walkTree(result.views, root);
 		return result;
 	}
 	
