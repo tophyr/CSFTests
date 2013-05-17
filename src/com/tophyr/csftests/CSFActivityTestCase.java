@@ -682,6 +682,38 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return result;
 	}
 	
+	@SuppressWarnings("unchecked")
+	protected FindViewResult<Button> overflowMenuButton() {
+		final Class<Button> overflowMenuButtonCls, absOverflowMenuButtonCls;
+		Class<Button> temp;
+		try {
+			temp = (Class<Button>)Class.forName("com.android.internal.view.menu.ActionMenuPresenter$OverflowMenuButton");
+		} catch (ClassNotFoundException e) {
+			temp = null;
+		}
+		overflowMenuButtonCls = temp;
+		
+		try {
+			temp = (Class<Button>)Class.forName("com.actionbarsherlock.internal.view.menu.ActionMenuPresenter$OverflowMenuButton");
+		} catch (ClassNotFoundException e) {
+			temp = null;
+		}
+		absOverflowMenuButtonCls = temp;
+		
+		FindViewResult<View> result = all();
+		
+		result.description = String.format("%s that are ActionBar menu buttons", result.description);
+		
+		result.filter(new Predicate<View>() { 
+			boolean test(View specimen) { 
+				return (overflowMenuButtonCls != null && overflowMenuButtonCls.isAssignableFrom(specimen.getClass())) || 
+					   (absOverflowMenuButtonCls != null && absOverflowMenuButtonCls.isAssignableFrom(specimen.getClass())); 
+			}
+		});
+		
+		return FindViewResult.cast(result, Button.class);
+	}
+	
 	protected FindViewResult<View> withId(int id) {
 		return withIds(Arrays.asList(id));
 	}
