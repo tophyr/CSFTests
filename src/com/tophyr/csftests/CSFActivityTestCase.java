@@ -255,6 +255,14 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		return m_ActivityMonitor.getLastResumedActivity();
 	}
 	
+	protected String getString(int resId) {
+		return getCurrentActivity().getString(resId);
+	}
+	
+	protected String getString(int resId, Object... args) {
+		return getCurrentActivity().getString(resId, args);
+	}
+	
 	protected boolean waitForActivity(Class<?> activityClass) {
 		return waitForActivity(activityClass, Timeouts.LONG);
 	}
