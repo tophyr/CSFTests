@@ -20,6 +20,7 @@ import android.graphics.Rect;
 import android.os.SystemClock;
 import android.test.ActivityInstrumentationTestCase2;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -461,11 +462,15 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 	}
 	
 	protected void clickBack() {
-		m_Solo.goBack();
+		m_Instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);
 	}
 	
 	protected void clickActionBarHome() {
 		m_Solo.clickOnActionBarHomeButton();
+	}
+	
+	protected void clickMenu() {
+		m_Instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_MENU);
 	}
 	
 	protected void clickView(int id) {
