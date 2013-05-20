@@ -469,6 +469,10 @@ public class CSFActivityTestCase<StartingActivity extends Activity> extends Acti
 		m_Solo.clickOnActionBarHomeButton();
 	}
 	
+	protected void clickHome() {
+		m_Instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_HOME);
+	}
+	
 	protected void clickMenu() {
 		m_Instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_MENU);
 	}
